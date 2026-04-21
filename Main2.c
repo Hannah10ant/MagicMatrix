@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <unistd.h>
 
 // ---------------- GLOBAL SCORE & MUTEX ----------------
 int globalScore = 0; // global shared score
@@ -44,6 +45,9 @@ void *worker(void *arg) {
         for (int j = 0; j < data->n; j++)
             sum += data->matrix[data->index][j];
 
+        // Delay
+        sleep(1);
+            
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
 
@@ -59,6 +63,9 @@ void *worker(void *arg) {
     else if (data->type == COLUMN) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][data->index];
+
+        // Delay
+        sleep(1);
 
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
@@ -77,6 +84,9 @@ void *worker(void *arg) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][i];
 
+        // Delay
+        sleep(1);
+
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
 
@@ -93,6 +103,9 @@ void *worker(void *arg) {
     else if (data->type == DIAG_SECONDARY) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][data->n - i - 1];
+
+        // Delay
+        sleep(1);
 
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
@@ -123,6 +136,9 @@ void *worker(void *arg) {
                 seen[val] = 1;
             }
         }
+
+        // Delay
+        sleep(1);
 
         data->validResult[0] = valid;
 
