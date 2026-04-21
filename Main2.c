@@ -195,35 +195,35 @@ int main() {
            i, colSum[i],
            colValid[i] ? "PASS" : "FAIL");
 }
-printf("Main Diagonal: Sum = %d | %s\n",
+    printf("Main Diagonal: Sum = %d | %s\n",
        diagMainSum[0],
        diagMainValid[0] ? "PASS" : "FAIL");
-printf("Secondary Diagonal: Sum = %d | %s\n",
+    printf("Secondary Diagonal: Sum = %d | %s\n",
        diagSecSum[0],
        diagSecValid[0] ? "PASS" : "FAIL");
-printf("Uniqueness: %s\n",
+    printf("Uniqueness: %s\n",
        uniquenessValid[0] ? "PASS" : "FAIL");
 
-// Overall result
-int overall = uniquenessValid[0];
-for (int i = 0; i < n; i++) {
-    if (!rowValid[i] || !colValid[i])
+    // Overall result
+    int overall = uniquenessValid[0];
+    for (int i = 0; i < n; i++) {
+        if (!rowValid[i] || !colValid[i])
+            overall = 0;
+    }
+    if (!diagMainValid[0] || !diagSecValid[0])
         overall = 0;
-}
-if (!diagMainValid[0] || !diagSecValid[0])
-    overall = 0;
-printf("\nOverall Result: %s\n",
-       overall ? "VALID MAGIC SQUARE" : "INVALID");
+    printf("\nOverall Result: %s\n",
+        overall ? "VALID MAGIC SQUARE" : "INVALID");
 
-    // Free memory
-    for (int i = 0; i < n; i++)
-        free(matrix[i]);
-    free(matrix);
+        // Free memory
+        for (int i = 0; i < n; i++)
+            free(matrix[i]);
+        free(matrix);
 
-    free(rowSum);
-    free(colSum);
-    free(rowValid);
-    free(colValid);
+        free(rowSum);
+        free(colSum);
+        free(rowValid);
+        free(colValid);
 
-    return 0;
-}
+        return 0;
+    }
