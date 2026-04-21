@@ -2,93 +2,117 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-// Enum to define task type - Type of cacluation that needs to be used
+// ---------------- ENUM ----------------
 typedef enum {
     ROW,
     COLUMN,
     DIAG_MAIN,
-    DIAG_SECONDARY
+    DIAG_SECONDARY,
+    UNIQUENESS
 } TaskType;
 
-// Struct for passing data to threads
+// ---------------- STRUCT ----------------
 typedef struct {
     int **matrix;
     int n;
-    int index;      // used for row/column, ignored for diagonals as they have both secondary & primary
-    int *result;
+    int index;  // used for row/column, ignored for diagonals as they have both secondary & primary
+    int *sumResult;
+    int *validResult;
+    int magicConstant;
     TaskType type;
 } ThreadData;
 
 // ------------------- Thread functions ---------------------------
-
-// sumLine()
-// Implemented 20/04/26
-// Used to compute the sum of a line in a matrix
+// worker()
+// Implemented 21/04/26
 //
 // fucntions : Uses If statements to determine calculation which is dependant on TaskType Type
-void *sumLine(void *arg) {
-    ThreadData *data = (ThreadData *)arg; // confirming that arg* is ThreadData Struct and safe access to struct
-    int sum = 0; // initalise sum
+void *worker(void *arg) {
+    ThreadData *data = (ThreadData *)arg;   // confirming that arg* is ThreadData Struct and safe access to struct
+    int sum = 0;
 
-    // Row Calcualtions
+    // If Type = ROW
     if (data->type == ROW) {
-        for (int j = 0; j < data->n; j++) {
+        for (int j = 0; j < data->n; j++)
             sum += data->matrix[data->index][j];
-        }
-        data->result[data->index] = sum;
-        printf("Row %d sum = %d (Thread %lu)\n", data->index, sum, pthread_self()); // confirmation print
 
-    // Coloum Calculations
-    } else if (data->type == COLUMN) {
-        for (int i = 0; i < data->n; i++) {
-            sum += data->matrix[i][data->index];
-        }
-        data->result[data->index] = sum;
-        printf("Column %d sum = %d (Thread %lu)\n", data->index, sum, pthread_self()); // confirmation print
-
-    // Diagonal (main) claculations
-    } else if (data->type == DIAG_MAIN) {
-        for (int i = 0; i < data->n; i++) {
-            sum += data->matrix[i][i];
-        }
-        data->result[0] = sum;
-        printf("Main diagonal sum = %d (Thread %lu)\n", sum, pthread_self()); // confirmation print
-    
-    // Diagonal (secondary) claculations
-    } else if (data->type == DIAG_SECONDARY) {
-        for (int i = 0; i < data->n; i++) {
-            sum += data->matrix[i][data->n - i - 1];
-        }
-        data->result[0] = sum;
-        printf("Secondary diagonal sum = %d (Thread %lu)\n", sum, pthread_self()); // confirmation print
+        data->sumResult[data->index] = sum;
+        data->validResult[data->index] = (sum == data->magicConstant);
     }
+    // If Type = COLOUM
+    else if (data->type == COLUMN) {
+        for (int i = 0; i < data->n; i++)
+            sum += data->matrix[i][data->index];
+
+        data->sumResult[data->index] = sum;
+        data->validResult[data->index] = (sum == data->magicConstant);
+    }
+
+    // If Type = Diganonal (main)
+    else if (data->type == DIAG_MAIN) {
+        for (int i = 0; i < data->n; i++)
+            sum += data->matrix[i][i];
+
+        data->sumResult[0] = sum;
+        data->validResult[0] = (sum == data->magicConstant);
+    }
+
+    // If Type = Diagnonal (secondary)
+    else if (data->type == DIAG_SECONDARY) {
+        for (int i = 0; i < data->n; i++)
+            sum += data->matrix[i][data->n - i - 1];
+
+        data->sumResult[0] = sum;
+        data->validResult[0] = (sum == data->magicConstant);
+    }
+    // UNIQUENESS TEST
+    else if (data->type == UNIQUENESS) {
+        //Initalize Varibles
+        int size = data->n * data->n; // Size is N
+        int *seen = calloc(size + 1, sizeof(int)); // dynamically allocate memory on the heap, initializing all bits to zero - GeeksForGeeks
+        int valid = 1; 
+
+        // For each index check int has already been seen, if so, change valuid to 0.
+        for (int i = 0; i < data->n; i++) {
+            for (int j = 0; j < data->n; j++) {
+                int val = data->matrix[i][j];
+
+                if (val < 1 || val > size || seen[val]) {
+                    valid = 0;
+                }
+                seen[val] = 1;
+            }
+        }
+
+        data->validResult[0] = valid;
+        free(seen);
+    }
+
     pthread_exit(NULL);
 }
 
 // Create_threads()
 // Implemented 20/4/26
-// Reusable thread creator for rows/columns
-//
-// Function : uses both structure and pthread_create to iterativly create threads for each row and coloum
-//            allowing for efficency
-
-void create_threads(pthread_t *threads, ThreadData *dataArray,
-                    int **matrix, int n, int *results, TaskType type) {
+// Reusable thread creator for all validations
+void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int n, int *sumResults, int *validResults, int magicConstant, TaskType type) {
 
     for (int i = 0; i < n; i++) {
         dataArray[i].matrix = matrix;
         dataArray[i].n = n;
         dataArray[i].index = i;
-        dataArray[i].result = results;
+        dataArray[i].sumResult = sumResults;
+        dataArray[i].validResult = validResults;
+        dataArray[i].magicConstant = magicConstant;
         dataArray[i].type = type;
-
-        pthread_create(&threads[i], NULL, sumLine, &dataArray[i]);
+        // create new worker
+        pthread_create(&threads[i], NULL, worker, &dataArray[i]);
     }
 
     for (int i = 0; i < n; i++) {
         pthread_join(threads[i], NULL);
     }
 }
+
 // ------------------------------ MAIN FUCNTION ----------------------------------------------
 
 int main() {
@@ -119,66 +143,87 @@ int main() {
 
     fclose(MagicFile);
 
-    // Initalize varibles
+     // Magic constant - Found from https://en.wikipedia.org/wiki/Magic_constant
+    int magicConstant = (n * (n * n + 1)) / 2;
+
+    // Thread setup
     pthread_t threads[n];
     ThreadData data[n];
 
-    int *rowResults = malloc(n * sizeof(int));
-    int *colResults = malloc(n * sizeof(int));
+    int *rowSum = malloc(n * sizeof(int));
+    int *colSum = malloc(n * sizeof(int));
 
-    int diagMain[1];
-    int diagSecondary[1];
+    int *rowValid = malloc(n * sizeof(int));
+    int *colValid = malloc(n * sizeof(int));
 
-    // Create Row Threads
-    // printf("=== Row Threads ===\n"); 
-    create_threads(threads, data, matrix, n, rowResults, ROW);
+    int diagMainSum[1], diagSecSum[1];
+    int diagMainValid[1], diagSecValid[1];
 
-    // Create column Threads
-    //printf("\n=== Column Threads ===\n");
-    create_threads(threads, data, matrix, n, colResults, COLUMN);
+    int uniquenessValid[1];
 
-    // Diagonals
-    // Initalize
+    // Create worker threads
+    create_threads(threads, data, matrix, n, rowSum, rowValid, magicConstant, ROW);
+    create_threads(threads, data, matrix, n, colSum, colValid, magicConstant, COLUMN);
+
+    // Diagonal threads
     pthread_t d1, d2;
-    ThreadData dData1, dData2;
+    ThreadData dData1 = {matrix, n, 0, diagMainSum, diagMainValid, magicConstant, DIAG_MAIN};
+    ThreadData dData2 = {matrix, n, 0, diagSecSum, diagSecValid, magicConstant, DIAG_SECONDARY};
 
-    // Create diagonal struct (main)
-    dData1.matrix = matrix;
-    dData1.n = n;
-    dData1.result = diagMain;
-    dData1.type = DIAG_MAIN;
+    pthread_create(&d1, NULL, worker, &dData1);
+    pthread_create(&d2, NULL, worker, &dData2);
 
-    // Create thread
-    pthread_create(&d1, NULL, sumLine, &dData1);
     pthread_join(d1, NULL);
-
-    //create diagonal struct (secondary)
-    dData2.matrix = matrix;
-    dData2.n = n;
-    dData2.result = diagSecondary;
-    dData2.type = DIAG_SECONDARY;
-
-    // create thread
-    pthread_create(&d2, NULL, sumLine, &dData2);
     pthread_join(d2, NULL);
 
-    // Final output - printing confirm
-    printf("\nFinal Results:\n");
-    for (int i = 0; i < n; i++) {
-        printf("Row %d = %d | Column %d = %d\n",
-               i, rowResults[i], i, colResults[i]);
-    }
+    // Uniqueness thread
+    pthread_t uThread;
+    ThreadData uData = {matrix, n, 0, NULL, uniquenessValid, magicConstant, UNIQUENESS};
 
-    printf("Main Diagonal = %d\n", diagMain[0]);
-    printf("Secondary Diagonal = %d\n", diagSecondary[0]);
+    pthread_create(&uThread, NULL, worker, &uData);
+    pthread_join(uThread, NULL);
+
+    // ---------------- REPORT ---------------- 
+    // not complete just used for confimations
+    printf("\n=== Validation Report ===\n");
+
+    for (int i = 0; i < n; i++) {
+    printf("Row %d: Sum = %d | %s\n",
+           i, rowSum[i],
+           rowValid[i] ? "PASS" : "FAIL");
+    printf("Column %d: Sum = %d | %s\n",
+           i, colSum[i],
+           colValid[i] ? "PASS" : "FAIL");
+}
+printf("Main Diagonal: Sum = %d | %s\n",
+       diagMainSum[0],
+       diagMainValid[0] ? "PASS" : "FAIL");
+printf("Secondary Diagonal: Sum = %d | %s\n",
+       diagSecSum[0],
+       diagSecValid[0] ? "PASS" : "FAIL");
+printf("Uniqueness: %s\n",
+       uniquenessValid[0] ? "PASS" : "FAIL");
+
+// Overall result
+int overall = uniquenessValid[0];
+for (int i = 0; i < n; i++) {
+    if (!rowValid[i] || !colValid[i])
+        overall = 0;
+}
+if (!diagMainValid[0] || !diagSecValid[0])
+    overall = 0;
+printf("\nOverall Result: %s\n",
+       overall ? "VALID MAGIC SQUARE" : "INVALID");
 
     // Free memory
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
         free(matrix[i]);
-    }
     free(matrix);
-    free(rowResults);
-    free(colResults);
+
+    free(rowSum);
+    free(colSum);
+    free(rowValid);
+    free(colValid);
 
     return 0;
 }
