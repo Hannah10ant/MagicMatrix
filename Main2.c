@@ -1,6 +1,14 @@
+// Main2.c - Main file for Assignment
+// Last Edited 22/04/26 - Hannah Tennant
+// Compile using gcc -lpthread Testingpthreads.c -o Testingpthreads
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+
+// ---------------- GLOBAL SCORE & MUTEX ----------------
+int globalScore = 0; // global shared score
+pthread_mutex_t scoreMutex; // mutex to ensure only one thread updates score at a time
 
 // ---------------- ENUM ----------------
 typedef enum {
@@ -38,6 +46,14 @@ void *worker(void *arg) {
 
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
+
+        // update global score
+        pthread_mutex_lock(&scoreMutex);
+        if (data->validResult[data->index])
+            globalScore++;
+        else if (globalScore > 0)
+            globalScore--;
+        pthread_mutex_unlock(&scoreMutex);
     }
     // If Type = COLOUM
     else if (data->type == COLUMN) {
@@ -46,6 +62,14 @@ void *worker(void *arg) {
 
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
+
+        // update global score
+        pthread_mutex_lock(&scoreMutex);
+        if (data->validResult[data->index])
+            globalScore++;
+        else if (globalScore > 0)
+            globalScore--;
+        pthread_mutex_unlock(&scoreMutex);
     }
 
     // If Type = Diganonal (main)
@@ -55,6 +79,14 @@ void *worker(void *arg) {
 
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
+
+        // update global score
+        pthread_mutex_lock(&scoreMutex);
+        if (data->validResult[0])
+            globalScore++;
+        else if (globalScore > 0)
+            globalScore--;
+        pthread_mutex_unlock(&scoreMutex);
     }
 
     // If Type = Diagnonal (secondary)
@@ -64,6 +96,14 @@ void *worker(void *arg) {
 
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
+
+        // update global score
+        pthread_mutex_lock(&scoreMutex);
+        if (data->validResult[0])
+            globalScore++;
+        else if (globalScore > 0)
+            globalScore--;
+        pthread_mutex_unlock(&scoreMutex);
     }
     // UNIQUENESS TEST
     else if (data->type == UNIQUENESS) {
@@ -85,15 +125,24 @@ void *worker(void *arg) {
         }
 
         data->validResult[0] = valid;
+
+        // update global score
+        pthread_mutex_lock(&scoreMutex);
+        if (valid)
+            globalScore++;
+        else if (globalScore > 0)
+            globalScore--;
+        pthread_mutex_unlock(&scoreMutex);
+
         free(seen);
     }
-
+    // will need to print an Thread ID-X: X checks completed here.
     pthread_exit(NULL);
 }
 
 // Create_threads()
 // Implemented 20/4/26
-// Reusable thread creator for all validations
+// Reusable thread creator for Rows/Coloums
 void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int n, int *sumResults, int *validResults, int magicConstant, TaskType type) {
 
     for (int i = 0; i < n; i++) {
@@ -104,8 +153,9 @@ void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int
         dataArray[i].validResult = validResults;
         dataArray[i].magicConstant = magicConstant;
         dataArray[i].type = type;
-        // create new worker
+        // create new worker/thread for each i, passing in the individual Array.
         pthread_create(&threads[i], NULL, worker, &dataArray[i]);
+        // sleep be added here for artifical delay!
     }
 
     for (int i = 0; i < n; i++) {
@@ -118,6 +168,9 @@ void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int
 int main() {
     FILE *MagicFile;
     int n;
+
+    // initialize mutex
+    pthread_mutex_init(&scoreMutex, NULL);
 
     // Open file
     MagicFile = fopen("Magic.txt", "r"); // This will be changed to be done via command line
@@ -143,13 +196,14 @@ int main() {
 
     fclose(MagicFile);
 
-     // Magic constant - Found from https://en.wikipedia.org/wiki/Magic_constant
+    // Magic constant - Found from https://en.wikipedia.org/wiki/Magic_constant
     int magicConstant = (n * (n * n + 1)) / 2;
 
     // Thread setup
     pthread_t threads[n];
     ThreadData data[n];
 
+    // Intialize worker varibles
     int *rowSum = malloc(n * sizeof(int));
     int *colSum = malloc(n * sizeof(int));
 
@@ -161,13 +215,13 @@ int main() {
 
     int uniquenessValid[1];
 
-    // Create worker threads
+    // Create worker threads (n amount of threads per function)
     create_threads(threads, data, matrix, n, rowSum, rowValid, magicConstant, ROW);
     create_threads(threads, data, matrix, n, colSum, colValid, magicConstant, COLUMN);
 
     // Diagonal threads
     pthread_t d1, d2;
-    ThreadData dData1 = {matrix, n, 0, diagMainSum, diagMainValid, magicConstant, DIAG_MAIN};
+    ThreadData dData1 = {matrix, n, 0, diagMainSum, diagMainValid, magicConstant, DIAG_MAIN}; 
     ThreadData dData2 = {matrix, n, 0, diagSecSum, diagSecValid, magicConstant, DIAG_SECONDARY};
 
     pthread_create(&d1, NULL, worker, &dData1);
@@ -188,21 +242,27 @@ int main() {
     printf("\n=== Validation Report ===\n");
 
     for (int i = 0; i < n; i++) {
-    printf("Row %d: Sum = %d | %s\n",
-           i, rowSum[i],
-           rowValid[i] ? "PASS" : "FAIL");
-    printf("Column %d: Sum = %d | %s\n",
-           i, colSum[i],
-           colValid[i] ? "PASS" : "FAIL");
-}
+        printf("Row %d: Sum = %d | %s\n",
+               i, rowSum[i],
+               rowValid[i] ? "PASS" : "FAIL");
+        printf("Column %d: Sum = %d | %s\n",
+               i, colSum[i],
+               colValid[i] ? "PASS" : "FAIL");
+    }
+
     printf("Main Diagonal: Sum = %d | %s\n",
-       diagMainSum[0],
-       diagMainValid[0] ? "PASS" : "FAIL");
+           diagMainSum[0],
+           diagMainValid[0] ? "PASS" : "FAIL");
+
     printf("Secondary Diagonal: Sum = %d | %s\n",
-       diagSecSum[0],
-       diagSecValid[0] ? "PASS" : "FAIL");
+           diagSecSum[0],
+           diagSecValid[0] ? "PASS" : "FAIL");
+
     printf("Uniqueness: %s\n",
-       uniquenessValid[0] ? "PASS" : "FAIL");
+           uniquenessValid[0] ? "PASS" : "FAIL");
+
+    // print global score
+    printf("Global Score: %d\n", globalScore);
 
     // Overall result
     int overall = uniquenessValid[0];
@@ -212,18 +272,22 @@ int main() {
     }
     if (!diagMainValid[0] || !diagSecValid[0])
         overall = 0;
+
     printf("\nOverall Result: %s\n",
-        overall ? "VALID MAGIC SQUARE" : "INVALID");
+           overall ? "VALID MAGIC SQUARE" : "INVALID");
 
-        // Free memory
-        for (int i = 0; i < n; i++)
-            free(matrix[i]);
-        free(matrix);
+    // Free memory
+    for (int i = 0; i < n; i++)
+        free(matrix[i]);
+    free(matrix);
 
-        free(rowSum);
-        free(colSum);
-        free(rowValid);
-        free(colValid);
+    free(rowSum);
+    free(colSum);
+    free(rowValid);
+    free(colValid);
 
-        return 0;
-    }
+    // destroy mutex
+    pthread_mutex_destroy(&scoreMutex);
+
+    return 0;
+}
