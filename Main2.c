@@ -10,13 +10,7 @@
 int globalScore = 0; // global shared score
 pthread_mutex_t scoreMutex; // mutex to ensure only one thread updates score at a time
 
-// flags to ensure only one print per category - due to one function exucuting all rows/col/diag
-int rowPrinted = 0;
-int colPrinted = 0;
-int diagPrinted = 0;
-int uniquePrinted = 0;
-
-// NEW: counters for proper completion detection
+// counters for proper completion detection
 int rowDone = 0;
 int colDone = 0;
 int diagDone = 0;
@@ -48,7 +42,6 @@ typedef struct {
 //
 // fucntions : Uses If statements to determine calculation which is dependant on TaskType Type
 // Issue --- Threads do not take the 1,2,3,4 ID...
-//           Brief Research States "No, a thread does not inherently take the smallest available ID." - so is this okay?
 void *worker(void *arg) {
     ThreadData *data = (ThreadData *)arg;
     int sum = 0;
@@ -224,7 +217,9 @@ int main() {
     // Read values
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
-            fscanf(MagicFile, "%d", &matrix[i][j]);
+            if (fscanf(MagicFile, "%d", &matrix[i][j]) != 1) { // add failure checking - cant read
+                printf("ERROR: issue reading value at [%d][%d]\n", i, j); // notifies user
+}
 
     fclose(MagicFile);
 
