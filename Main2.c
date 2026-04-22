@@ -206,25 +206,25 @@ int main() {
         return 1;
     }
 
+    // Read File Contents
     fscanf(MagicFile, "%d", &n);
 
     // Allocate matrix for size of n
     int **matrix = malloc(n * sizeof(int *));
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
         matrix[i] = malloc(n * sizeof(int));
-    }
 
     // Read values
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
             fscanf(MagicFile, "%d", &matrix[i][j]);
-        }
-    }
 
     fclose(MagicFile);
 
     // Magic constant - Found from https://en.wikipedia.org/wiki/Magic_constant
     int magicConstant = (n * (n * n + 1)) / 2;
+    int maxScore = (2 * n) + 3; // defines what the total vaild scre should equal to
+                                // n=3 : (3 * 2(rows & coloums)) + 3(diagonal score total) = 9
 
     // Thread setup
     pthread_t threads[n];
@@ -233,13 +233,11 @@ int main() {
     // Intialize worker varibles
     int *rowSum = malloc(n * sizeof(int));
     int *colSum = malloc(n * sizeof(int));
-
     int *rowValid = malloc(n * sizeof(int));
     int *colValid = malloc(n * sizeof(int));
 
     int diagMainSum[1], diagSecSum[1];
     int diagMainValid[1], diagSecValid[1];
-
     int uniquenessValid[1];
 
     // Create worker threads (n amount of threads per function)
@@ -248,7 +246,7 @@ int main() {
 
     // Diagonal threads
     pthread_t d1, d2;
-    ThreadData dData1 = {matrix, n, 0, diagMainSum, diagMainValid, magicConstant, DIAG_MAIN}; 
+    ThreadData dData1 = {matrix, n, 0, diagMainSum, diagMainValid, magicConstant, DIAG_MAIN};
     ThreadData dData2 = {matrix, n, 0, diagSecSum, diagSecValid, magicConstant, DIAG_SECONDARY};
 
     pthread_create(&d1, NULL, worker, &dData1);
@@ -265,47 +263,55 @@ int main() {
     pthread_join(uThread, NULL);
 
     // ---------------- REPORT ---------------- 
-    // not complete just used for confimations
-    printf("\n=== Validation Report ===\n");
+    printf("\n--- Magic Square Report ---\n");
 
+    int allRowsValid = 1;
     for (int i = 0; i < n; i++) {
-        printf("Row %d: Sum = %d | %s\n",
-               i, rowSum[i],
-               rowValid[i] ? "PASS" : "FAIL");
-        printf("Column %d: Sum = %d | %s\n",
-               i, colSum[i],
-               colValid[i] ? "PASS" : "FAIL");
+        if (!rowValid[i]) {  // if rowVaild[row] is not 1 then print invalid note for specfic row
+            printf("Rows:   Row %d Invalid\n", i + 1);
+            allRowsValid = 0;
+        }
     }
+    if (allRowsValid) printf("Rows:   All Valid\n"); // print seprate statement for all vaild
 
-    printf("Main Diagonal: Sum = %d | %s\n",
-           diagMainSum[0],
-           diagMainValid[0] ? "PASS" : "FAIL");
-
-    printf("Secondary Diagonal: Sum = %d | %s\n",
-           diagSecSum[0],
-           diagSecValid[0] ? "PASS" : "FAIL");
-
-    printf("Uniqueness: %s\n",
-           uniquenessValid[0] ? "PASS" : "FAIL");
-
-    // print global score
-    printf("Global Score: %d\n", globalScore);
-
-    // Overall result
-    int overall = uniquenessValid[0];
+    int allColsValid = 1;
     for (int i = 0; i < n; i++) {
-        if (!rowValid[i] || !colValid[i])
-            overall = 0;
+        if (!colValid[i]) {
+            printf("Cols:   Col %d Invalid\n", i + 1);
+            allColsValid = 0;
+        }
     }
-    if (!diagMainValid[0] || !diagSecValid[0])
-        overall = 0;
+    if (allColsValid) printf("Cols:   All Valid\n");
 
-    printf("\nOverall Result: %s\n",
-           overall ? "VALID MAGIC SQUARE" : "INVALID");
+    // Diagonal report
+    int diagFail = 0;
+    if (!diagMainValid[0]) {
+        printf("Diags:  Main Diag Invalid\n");
+        diagFail = 1;
+    }
+    if (!diagSecValid[0]) {
+        printf("Diags:  Secondary Diag Invalid\n");
+        diagFail = 1;
+    }
+    if (!diagFail) printf("Diags:  All Valid\n");
 
-    // Free memory
-    for (int i = 0; i < n; i++)
-        free(matrix[i]);
+    // Uniqueness report 
+    if (uniquenessValid[0])
+        printf("Unique: Passed\n");
+    else
+        printf("Unique: Failed (Duplicates found)\n");
+
+    // final global score vs max calc score 
+    printf("Final Score:  %d / %d\n", globalScore, maxScore);
+
+    // overal valid
+    if (globalScore == maxScore)
+        printf("RESULT: VALID MAGIC SQUARE\n");
+    else
+        printf("RESULT: INVALID MAGIC SQUARE\n");
+
+    // free memory
+    for (int i = 0; i < n; i++) free(matrix[i]);
     free(matrix);
 
     free(rowSum);
@@ -313,7 +319,7 @@ int main() {
     free(rowValid);
     free(colValid);
 
-    // destroy mutex
+    // destroy mutex to free memory
     pthread_mutex_destroy(&scoreMutex);
 
     return 0;
