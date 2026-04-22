@@ -11,6 +11,12 @@
 int globalScore = 0; // global shared score
 pthread_mutex_t scoreMutex; // mutex to ensure only one thread updates score at a time
 
+// flags to ensure only one print per category - due to one function exucuting all rows/col/diag
+int rowPrinted = 0;
+int colPrinted = 0;
+int diagPrinted = 0;
+int uniquePrinted = 0;
+
 // ---------------- ENUM ----------------
 typedef enum {
     ROW,
@@ -36,8 +42,10 @@ typedef struct {
 // Implemented 21/04/26
 //
 // fucntions : Uses If statements to determine calculation which is dependant on TaskType Type
+// Issue --- Threads do not take the 1,2,3,4 ID...
+//           Brief Research States "No, a thread does not inherently take the smallest available ID." - so is this okay?
 void *worker(void *arg) {
-    ThreadData *data = (ThreadData *)arg;   // confirming that arg* is ThreadData Struct and safe access to struct
+    ThreadData *data = (ThreadData *)arg;
     int sum = 0;
 
     // If Type = ROW
@@ -45,37 +53,30 @@ void *worker(void *arg) {
         for (int j = 0; j < data->n; j++)
             sum += data->matrix[data->index][j];
 
-        // Delay
         sleep(1);
-            
+
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
 
-        // update global score
         pthread_mutex_lock(&scoreMutex);
-        if (data->validResult[data->index])
-            globalScore++;
-        else if (globalScore > 0)
-            globalScore--;
+        if (data->validResult[data->index]) globalScore++;
+        else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
     }
+
     // If Type = COLOUM
     else if (data->type == COLUMN) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][data->index];
 
-        // Delay
         sleep(1);
 
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
 
-        // update global score
         pthread_mutex_lock(&scoreMutex);
-        if (data->validResult[data->index])
-            globalScore++;
-        else if (globalScore > 0)
-            globalScore--;
+        if (data->validResult[data->index]) globalScore++;
+        else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
     }
 
@@ -84,18 +85,14 @@ void *worker(void *arg) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][i];
 
-        // Delay
         sleep(1);
 
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
 
-        // update global score
         pthread_mutex_lock(&scoreMutex);
-        if (data->validResult[0])
-            globalScore++;
-        else if (globalScore > 0)
-            globalScore--;
+        if (data->validResult[0]) globalScore++;
+        else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
     }
 
@@ -104,28 +101,23 @@ void *worker(void *arg) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][data->n - i - 1];
 
-        // Delay
         sleep(1);
 
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
 
-        // update global score
         pthread_mutex_lock(&scoreMutex);
-        if (data->validResult[0])
-            globalScore++;
-        else if (globalScore > 0)
-            globalScore--;
+        if (data->validResult[0]) globalScore++;
+        else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
     }
+
     // UNIQUENESS TEST
     else if (data->type == UNIQUENESS) {
-        //Initalize Varibles
-        int size = data->n * data->n; // Size is N
-        int *seen = calloc(size + 1, sizeof(int)); // dynamically allocate memory on the heap, initializing all bits to zero - GeeksForGeeks
-        int valid = 1; 
+        int size = data->n * data->n;
+        int *seen = calloc(size + 1, sizeof(int));
+        int valid = 1;
 
-        // For each index check int has already been seen, if so, change valuid to 0.
         for (int i = 0; i < data->n; i++) {
             for (int j = 0; j < data->n; j++) {
                 int val = data->matrix[i][j];
@@ -137,22 +129,42 @@ void *worker(void *arg) {
             }
         }
 
-        // Delay
         sleep(1);
 
         data->validResult[0] = valid;
 
-        // update global score
         pthread_mutex_lock(&scoreMutex);
-        if (valid)
-            globalScore++;
-        else if (globalScore > 0)
-            globalScore--;
+        if (valid) globalScore++;
+        else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
 
         free(seen);
     }
-    // will need to print an Thread ID-X: X checks completed here.
+
+    // thread completion logs (only once per category) - testing
+    pthread_t tid = pthread_self();
+
+    pthread_mutex_lock(&scoreMutex);
+
+    if (data->type == ROW && !rowPrinted) {
+        printf("Thread ID-%lu: Row checks completed.\n", tid);
+        rowPrinted = 1;
+    }
+    else if (data->type == COLUMN && !colPrinted) {
+        printf("Thread ID-%lu: Column checks completed.\n", tid);
+        colPrinted = 1;
+    }
+    else if ((data->type == DIAG_MAIN || data->type == DIAG_SECONDARY) && !diagPrinted) {
+        printf("Thread ID-%lu: Diagonal checks completed.\n", tid);
+        diagPrinted = 1;
+    }
+    else if (data->type == UNIQUENESS && !uniquePrinted) {
+        printf("Thread ID-%lu: Uniqueness check completed.\n", tid);
+        uniquePrinted = 1;
+    }
+
+    pthread_mutex_unlock(&scoreMutex);
+
     pthread_exit(NULL);
 }
 
@@ -171,7 +183,6 @@ void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int
         dataArray[i].type = type;
         // create new worker/thread for each i, passing in the individual Array.
         pthread_create(&threads[i], NULL, worker, &dataArray[i]);
-        // sleep be added here for artifical delay!
     }
 
     for (int i = 0; i < n; i++) {
