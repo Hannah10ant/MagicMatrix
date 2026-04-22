@@ -192,7 +192,15 @@ void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int
 
 // ------------------------------ MAIN FUCNTION ----------------------------------------------
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    // Arguments input if not explict
+    if (argc < 2) {
+        printf("Usage: ./Main <input_file>\n", argv[0]);
+        printf("Please retry");
+        return 1;
+    }
+
     FILE *MagicFile;
     int n;
 
@@ -200,7 +208,7 @@ int main() {
     pthread_mutex_init(&scoreMutex, NULL);
 
     // Open file
-    MagicFile = fopen("Magic.txt", "r"); // This will be changed to be done via command line
+    MagicFile = fopen(argv[1], "r");
     if (MagicFile == NULL) {
         printf("Not able to open the file.\n");
         return 1;
