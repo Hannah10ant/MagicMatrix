@@ -1,7 +1,6 @@
 // Main2.c - Main file for Assignment
 // Last Edited 22/04/26 - Hannah Tennant
 // Compile using gcc -lpthread Testingpthreads.c -o Testingpthreads
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -16,6 +15,12 @@ int rowPrinted = 0;
 int colPrinted = 0;
 int diagPrinted = 0;
 int uniquePrinted = 0;
+
+// NEW: counters for proper completion detection
+int rowDone = 0;
+int colDone = 0;
+int diagDone = 0;
+int uniqueDone = 0;
 
 // ---------------- ENUM ----------------
 typedef enum {
@@ -142,25 +147,31 @@ void *worker(void *arg) {
     }
 
     // thread completion logs (only once per category) - testing
-    pthread_t tid = pthread_self();
-
     pthread_mutex_lock(&scoreMutex);
 
-    if (data->type == ROW && !rowPrinted) {
-        printf("Thread ID-%lu: Row checks completed.\n", tid);
-        rowPrinted = 1;
+    if (data->type == ROW) {
+        rowDone++;
+        if (rowDone == data->n) {
+            printf("Thread ID-%lu: Row checks completed.\n", pthread_self());
+        }
     }
-    else if (data->type == COLUMN && !colPrinted) {
-        printf("Thread ID-%lu: Column checks completed.\n", tid);
-        colPrinted = 1;
+    else if (data->type == COLUMN) {
+        colDone++;
+        if (colDone == data->n) {
+            printf("Thread ID-%lu: Column checks completed.\n", pthread_self());
+        }
     }
-    else if ((data->type == DIAG_MAIN || data->type == DIAG_SECONDARY) && !diagPrinted) {
-        printf("Thread ID-%lu: Diagonal checks completed.\n", tid);
-        diagPrinted = 1;
+    else if (data->type == DIAG_MAIN || data->type == DIAG_SECONDARY) {
+        diagDone++;
+        if (diagDone == 2) {
+            printf("Thread ID-%lu: Diagonal checks completed.\n", pthread_self());
+        }
     }
-    else if (data->type == UNIQUENESS && !uniquePrinted) {
-        printf("Thread ID-%lu: Uniqueness check completed.\n", tid);
-        uniquePrinted = 1;
+    else if (data->type == UNIQUENESS) {
+        uniqueDone++;
+        if (uniqueDone == 1) {
+            printf("Thread ID-%lu: Uniqueness check completed.\n", pthread_self());
+        }
     }
 
     pthread_mutex_unlock(&scoreMutex);
@@ -183,10 +194,6 @@ void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int
         dataArray[i].type = type;
         // create new worker/thread for each i, passing in the individual Array.
         pthread_create(&threads[i], NULL, worker, &dataArray[i]);
-    }
-
-    for (int i = 0; i < n; i++) {
-        pthread_join(threads[i], NULL);
     }
 }
 
@@ -227,8 +234,11 @@ int main() {
                                 // n=3 : (3 * 2(rows & coloums)) + 3(diagonal score total) = 9
 
     // Thread setup
-    pthread_t threads[n];
-    ThreadData data[n];
+    pthread_t rowThreads[n];
+    pthread_t colThreads[n];
+
+    ThreadData rowData[n];
+    ThreadData colData[n];
 
     // Intialize worker varibles
     int *rowSum = malloc(n * sizeof(int));
@@ -240,11 +250,10 @@ int main() {
     int diagMainValid[1], diagSecValid[1];
     int uniquenessValid[1];
 
-    // Create worker threads (n amount of threads per function)
-    create_threads(threads, data, matrix, n, rowSum, rowValid, magicConstant, ROW);
-    create_threads(threads, data, matrix, n, colSum, colValid, magicConstant, COLUMN);
+    // Create ALL threads first (true concurrency)
+    create_threads(rowThreads, rowData, matrix, n, rowSum, rowValid, magicConstant, ROW);
+    create_threads(colThreads, colData, matrix, n, colSum, colValid, magicConstant, COLUMN);
 
-    // Diagonal threads
     pthread_t d1, d2;
     ThreadData dData1 = {matrix, n, 0, diagMainSum, diagMainValid, magicConstant, DIAG_MAIN};
     ThreadData dData2 = {matrix, n, 0, diagSecSum, diagSecValid, magicConstant, DIAG_SECONDARY};
@@ -252,14 +261,18 @@ int main() {
     pthread_create(&d1, NULL, worker, &dData1);
     pthread_create(&d2, NULL, worker, &dData2);
 
-    pthread_join(d1, NULL);
-    pthread_join(d2, NULL);
-
-    // Uniqueness thread
     pthread_t uThread;
     ThreadData uData = {matrix, n, 0, NULL, uniquenessValid, magicConstant, UNIQUENESS};
 
     pthread_create(&uThread, NULL, worker, &uData);
+
+    // JOIN all threads
+    for (int i = 0; i < n; i++) pthread_join(rowThreads[i], NULL);
+    for (int i = 0; i < n; i++) pthread_join(colThreads[i], NULL);
+
+    pthread_join(d1, NULL);
+    pthread_join(d2, NULL);
+
     pthread_join(uThread, NULL);
 
     // ---------------- REPORT ---------------- 
@@ -272,8 +285,10 @@ int main() {
             allRowsValid = 0;
         }
     }
-    if (allRowsValid) printf("Rows:   All Valid\n"); // print seprate statement for all vaild
+    // print seprate statement for all vaild
+    if (allRowsValid) printf("Rows:   All Valid\n");
 
+    //Coloumn Report
     int allColsValid = 1;
     for (int i = 0; i < n; i++) {
         if (!colValid[i]) {
@@ -283,7 +298,7 @@ int main() {
     }
     if (allColsValid) printf("Cols:   All Valid\n");
 
-    // Diagonal report
+    // Diagonal Report
     int diagFail = 0;
     if (!diagMainValid[0]) {
         printf("Diags:  Main Diag Invalid\n");
@@ -295,7 +310,7 @@ int main() {
     }
     if (!diagFail) printf("Diags:  All Valid\n");
 
-    // Uniqueness report 
+    // Uniqueness Report
     if (uniquenessValid[0])
         printf("Unique: Passed\n");
     else
@@ -304,13 +319,13 @@ int main() {
     // final global score vs max calc score 
     printf("Final Score:  %d / %d\n", globalScore, maxScore);
 
-    // overal valid
+    // Overall Valid
     if (globalScore == maxScore)
         printf("RESULT: VALID MAGIC SQUARE\n");
     else
         printf("RESULT: INVALID MAGIC SQUARE\n");
 
-    // free memory
+    // Free Memory
     for (int i = 0; i < n; i++) free(matrix[i]);
     free(matrix);
 
