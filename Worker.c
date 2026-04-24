@@ -21,12 +21,13 @@ void *worker(void *arg) {
         for (int j = 0; j < data->n; j++)
             sum += data->matrix[data->index][j];
 
-        sleep(1);
+        sleep(2);
 
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
 
         pthread_mutex_lock(&scoreMutex);
+        // Critical Section //
         if (data->validResult[data->index]) globalScore++;
         else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
@@ -37,12 +38,13 @@ void *worker(void *arg) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][data->index];
 
-        sleep(1);
+        sleep(2);
 
         data->sumResult[data->index] = sum;
         data->validResult[data->index] = (sum == data->magicConstant);
 
         pthread_mutex_lock(&scoreMutex);
+        // Critical Section //
         if (data->validResult[data->index]) globalScore++;
         else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
@@ -53,12 +55,13 @@ void *worker(void *arg) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][i];
 
-        sleep(1);
+        sleep(2);
 
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
 
         pthread_mutex_lock(&scoreMutex);
+        // Critical Section //
         if (data->validResult[0]) globalScore++;
         else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
@@ -69,12 +72,13 @@ void *worker(void *arg) {
         for (int i = 0; i < data->n; i++)
             sum += data->matrix[i][data->n - i - 1];
 
-        sleep(1);
+        sleep(2);
 
         data->sumResult[0] = sum;
         data->validResult[0] = (sum == data->magicConstant);
 
         pthread_mutex_lock(&scoreMutex);
+        // Critical Section //
         if (data->validResult[0]) globalScore++;
         else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
@@ -97,11 +101,12 @@ void *worker(void *arg) {
             }
         }
 
-        sleep(1);
+        sleep(2);
 
         data->validResult[0] = valid;
 
         pthread_mutex_lock(&scoreMutex);
+        // Critical Section //
         if (valid) globalScore++;
         else if (globalScore > 0) globalScore--;
         pthread_mutex_unlock(&scoreMutex);
@@ -111,6 +116,7 @@ void *worker(void *arg) {
 
     // thread completion logs (only once per category) - testing
     pthread_mutex_lock(&scoreMutex);
+    // Critical Section //
 
     if (data->type == ROW) {
         rowDone++;

@@ -9,10 +9,7 @@
 // Create_threads()
 // Implemented 20/4/26
 // Reusable thread creator for Rows/Coloums
-void create_threads(pthread_t *threads, ThreadData *dataArray,
-                    int **matrix, int n,
-                    int *sumResults, int *validResults,
-                    int magicConstant, TaskType type) {
+void create_threads(pthread_t *threads, ThreadData *dataArray, int **matrix, int n, int *sumResults, int *validResults, int magicConstant, TaskType type) {
 
     for (int i = 0; i < n; i++) {
         dataArray[i].matrix = matrix;

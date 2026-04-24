@@ -22,7 +22,6 @@ int diagDone = 0;
 int uniqueDone = 0;
 
 // ------------------------------ MAIN FUCNTION ----------------------------------------------
-
 int main(int argc, char *argv[]) {
 
     // Arguments input if not explict
@@ -35,7 +34,8 @@ int main(int argc, char *argv[]) {
     FILE *MagicFile;
     int n;
 
-    // initialize mutex
+    // initialize mutex - Die.net - Linux Man Page
+    // works as global varible - used in worker() (Worker.c)
     pthread_mutex_init(&scoreMutex, NULL);
 
     // Open file
@@ -57,7 +57,11 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
             if (fscanf(MagicFile, "%d", &matrix[i][j]) != 1) { // add failure checking - cant read
-                printf("ERROR: issue reading value at [%d][%d]\n", i, j); // notifies user
+                printf("ERROR: issue with value at [%d][%d]\n", i, j); // notifies user
+                for (int i = 0; i < n; i++) free(matrix[i]);
+                free(matrix);
+                printf("Please check text file");
+                return 1;
 }
 
     fclose(MagicFile);
@@ -110,6 +114,7 @@ int main(int argc, char *argv[]) {
     pthread_join(uThread, NULL);
 
     // ---------------- REPORT ---------------- 
+    sleep(2);
     printf("\n--- Magic Square Report ---\n");
 
     int allRowsValid = 1;
